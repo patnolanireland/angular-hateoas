@@ -77,7 +77,9 @@ angular.module("hateoas", ["ngResource"])
 		// global Hateoas settings
 		var globalHttpMethods,
 			linksKey = "links",
-			halEmbedded = false;
+			halEmbedded = false,
+			augmentResource = true,
+			consumeLinks = true;
 
 		return {
 
@@ -95,6 +97,22 @@ angular.module("hateoas", ["ngResource"])
 
 			getHalEmbedded: function () {
 				return halEmbedded;
+			},
+
+			setConsumeLinks: function(val) {
+				consumeLinks = val;
+			},
+
+			getConsumeLinks: function() {
+				return consumeLinks;
+			},
+
+			setAugmentResource: function() {
+				augmentResource = val;
+			},
+
+			getAugmentResource: function() {
+				return augmentResource;
 			},
 
 			setHttpMethods: function (httpMethods) {
@@ -123,11 +141,35 @@ angular.module("hateoas", ["ngResource"])
 				};
 
 				var HateoasInterface = function (data) {
+					if(data[linksKey] && augmentResource) {
+						angular.forEach(data[linksKey], function(item, index) {
+                            var action = {},
+                                //Replace snake case with cameCase
+                                methodName = item.rel.replace(/(\-[a-z])/g, function(a) {
+                                    return a.toUpperCase().replace('-', '');
+                            });
+
+							action[methodName] = { method: item.method || 'GET' };
+
+							if(item.headers) {
+								action.headers = item.headers;
+							}
+
+							//May look at putting in a validation hook when a JSON Schema is provided
+							data[item.rel] = $injector.get('$resource')(item.href, null, action);
+						});
+					}
+
 
 					// if links are present, consume object and convert links
 					if (data[linksKey]) {
 						var links = {};
 						links[linksKey] = arrayToObject("rel", "href", data[linksKey]);
+
+						if(consumeLinks === false) {
+							data.originalLinks = angular.copy(data[linksKey]);
+						}
+
 						data = angular.extend(this, data, links, { resource: resource });
 					}
 
